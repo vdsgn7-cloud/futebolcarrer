@@ -71,9 +71,8 @@ export default function Pitch2D({
     const totalHops = seq.passes.length - 1;
 
     // todos os passes da sequência já rolaram -> resolve o desfecho
-    // (gol / chute pra fora / posse perdida) com uma pequena pausa.
     if (hopIdx >= totalHops) {
-      draw(seq, hopIdx, 1);
+      draw(seq, hopIdx, 1, startRef.current + totalHops * (HOP_MS / speed));
       timeoutRef.current = setTimeout(() => {
         setMinutoAtual(seq.minuto);
         if (seq.tipo === "gol") {
@@ -98,7 +97,7 @@ export default function Pitch2D({
     function frame(ts) {
       if (!startRef.current) startRef.current = ts;
       const t = Math.min(1, (ts - startRef.current) / duracao);
-      draw(seq, hopIdx, t);
+      draw(seq, hopIdx, t, ts);
       if (t < 1) {
         rafRef.current = requestAnimationFrame(frame);
       } else {
@@ -110,100 +109,202 @@ export default function Pitch2D({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seqIdx, hopIdx, timeline, speed]);
 
-  function draw(seq, hop, t) {
+  // Calcula a posição dinâmica do jogador baseada em respiração, sway e tática
+  function getDynamicPlayerPos(p, i, isMandante, seq, hop, t, ts, deBase, paraBase) {
+    const base = toPx(p.x, p.y);
+    
+    // 1. Idle Sway / Respiração
+    const time = ts || 0;
+    const swayX = Math.sin((time + i * 400) / 280) * 1.6;
+    const swayY = Math.cos((time + i * 400) / 280) * 1.6;
+
+    // 2. Compactação tática na direção da bola
+    const estBallX = deBase.x + (paraBase.x - deBase.x) * t;
+    const estBallY = deBase.y + (paraBase.y - deBase.y) * t;
+
+    const dx = estBallX - base.x;
+    const dy = estBallY - base.y;
+
+    let shiftFactor = 0.06;
+    if (p.pos === "GOL") shiftFactor = 0.02;
+    else if (p.pos === "ZAG") shiftFactor = 0.05;
+    else if (p.pos === "LAT") shiftFactor = 0.09;
+    else if (p.pos === "VOL") shiftFactor = 0.11;
+    else if (p.pos === "MEI") shiftFactor = 0.15;
+    else if (p.pos === "ATA") shiftFactor = 0.18;
+
+    let shiftX = dx * shiftFactor;
+    let shiftY = dy * shiftFactor;
+
+    // Limites de deslocamento
+    const maxShift = p.pos === "GOL" ? 12 : p.pos === "ZAG" ? 25 : 45;
+    const shiftDist = Math.sqrt(shiftX * shiftX + shiftY * shiftY);
+    if (shiftDist > maxShift) {
+      shiftX = (shiftX / shiftDist) * maxShift;
+      shiftY = (shiftY / shiftDist) * maxShift;
+    }
+
+    let finalX = base.x + swayX + shiftX;
+    let finalY = base.y + swayY + shiftY;
+
+    // 3. Corridas ativas de passe e recepção
+    const éTimeAtacando = (isMandante && seq.time === "mandante") || (!isMandante && seq.time === "visitante");
+    const slotDe = seq.passes[hop];
+    const slotPara = seq.passes[hop + 1] ?? slotDe;
+
+    if (éTimeAtacando) {
+      if (i === slotDe) {
+        // Passer corre na direção do passe
+        const runX = (paraBase.x - deBase.x) * t * 0.18;
+        const runY = (paraBase.y - deBase.y) * t * 0.18;
+        finalX += runX;
+        finalY += runY;
+      } else if (i === slotPara) {
+        // Receiver corre de encontro com a bola
+        const meetX = (deBase.x - paraBase.x) * (1 - t) * 0.18;
+        const meetY = (deBase.y - paraBase.y) * (1 - t) * 0.18;
+        finalX += meetX;
+        finalY += meetY;
+      }
+    }
+
+    return { x: finalX, y: finalY };
+  }
+
+  function draw(seq, hop, t, ts) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, PITCH_W, PITCH_H);
     drawField(ctx);
 
-    // Renderiza os jogadores mandantes e visitantes com aparência procedimental
-    mandantePos.forEach((p, i) => {
+    const slotDe = seq.passes[hop];
+    const slotPara = seq.passes[hop + 1] ?? slotDe;
+
+    // Bases para cálculo de corrida
+    const mandanteBaseArray = seq.time === "mandante" ? mandantePos : visitantePos;
+    const deBase = toPx(mandanteBaseArray[slotDe].x, mandanteBaseArray[slotDe].y);
+    const paraBase = toPx(mandanteBaseArray[slotPara].x, mandanteBaseArray[slotPara].y);
+
+    // Calcular posições dinâmicas de todos os jogadores
+    const dynMandante = mandantePos.map((p, i) =>
+      getDynamicPlayerPos(p, i, true, seq, hop, t, ts, deBase, paraBase)
+    );
+    const dynVisitante = visitantePos.map((p, i) =>
+      getDynamicPlayerPos(p, i, false, seq, hop, t, ts, deBase, paraBase)
+    );
+
+    // Renderizar os jogadores nas coordenadas dinâmicas
+    dynMandante.forEach((p, i) => {
       const isMe = "mandante" === meuLado && i === meuSlot;
       const playerCustom = isMe ? customizacaoJogador : titularesMandante?.[i]?.customizacao;
       const numero = isMe ? (customizacaoJogador?.numero || i + 1) : (titularesMandante?.[i]?.numero || i + 1);
-      drawPlayer(ctx, p, corMandante, isMe, numero, playerCustom, true);
+      const isWithBall = seq.time === "mandante" && (t < 0.5 ? i === slotDe : i === slotPara);
+      drawPlayer(ctx, p, corMandante, isMe, numero, playerCustom, true, isWithBall);
     });
 
-    visitantePos.forEach((p, i) => {
+    dynVisitante.forEach((p, i) => {
       const isMe = "visitante" === meuLado && i === meuSlot;
       const playerCustom = isMe ? customizacaoJogador : titularesVisitante?.[i]?.customizacao;
       const numero = isMe ? (customizacaoJogador?.numero || i + 1) : (titularesVisitante?.[i]?.numero || i + 1);
-      drawPlayer(ctx, p, corVisitante, isMe, numero, playerCustom, false);
+      const isWithBall = seq.time === "visitante" && (t < 0.5 ? i === slotDe : i === slotPara);
+      drawPlayer(ctx, p, corVisitante, isMe, numero, playerCustom, false, isWithBall);
     });
 
-    const posArray = seq.time === "mandante" ? mandantePos : visitantePos;
-    const slotDe = seq.passes[hop];
-    const slotPara = seq.passes[hop + 1] ?? slotDe;
-    const de = toPx(posArray[slotDe].x, posArray[slotDe].y);
-    const para = toPx(posArray[slotPara].x, posArray[slotPara].y);
+    // Posições da bola baseadas nas posições dinâmicas dos jogadores
+    const posDynArray = seq.time === "mandante" ? dynMandante : dynVisitante;
+    const de = posDynArray[slotDe];
+    const para = posDynArray[slotPara] ?? de;
 
-    // Trajetória no chão (sombra) e bola no ar (arco 3D)
     const groundX = de.x + (para.x - de.x) * t;
     const groundY = de.y + (para.y - de.y) * t;
-    const arco = Math.sin(Math.min(t, 1) * Math.PI) * 12; // Altura do chute
+    const arco = Math.sin(Math.min(t, 1) * Math.PI) * 14;
     const ballX = groundX;
     const ballY = groundY - arco;
 
     drawPassLine(ctx, de, para);
-    
-    // Desenha a sombra da bola no chão
     drawBallShadow(ctx, groundX, groundY, arco);
-    
-    // Desenha a bola de futebol girando
     drawBall(ctx, ballX, ballY, t);
 
-    // rótulo com o nome de quem está com a bola
+    // rótulo de quem está com a bola
     const slotRotulo = t < 0.5 ? slotDe : slotPara;
     const nomeRotulo = nomeDoSlot(seq.time, slotRotulo);
     drawRotulo(ctx, ballX, ballY, nomeRotulo, slotRotulo === meuSlot && seq.time === meuLado);
 
-    // desfecho: gol / chute / posse perdida, exibido no último "frame"
     if (hop >= seq.passes.length - 1 && seq.tipo !== "buildup") {
       drawGoalFlash(ctx, seq.time === "mandante");
     }
   }
 
   function drawField(ctx) {
-    ctx.fillStyle = "#0b3d2e";
+    // Gramado escuro premium
+    ctx.fillStyle = "#0c2014";
     ctx.fillRect(0, 0, PITCH_W, PITCH_H);
-    ctx.fillStyle = "rgba(255,255,255,0.025)";
-    for (let i = 0; i < 10; i++) {
-      if (i % 2 === 0) ctx.fillRect((i * PITCH_W) / 10, 0, PITCH_W / 10, PITCH_H);
+
+    // Listras verticais verdes (mockup)
+    ctx.fillStyle = "#0e2618";
+    const stripesCount = 14;
+    const stripeW = PITCH_W / stripesCount;
+    for (let i = 0; i < stripesCount; i++) {
+      if (i % 2 === 0) {
+        ctx.fillRect(i * stripeW, 0, stripeW, PITCH_H);
+      }
     }
-    ctx.strokeStyle = "rgba(242,246,241,0.55)";
-    ctx.lineWidth = 2;
+
+    // Linhas do campo brancas discretas
+    ctx.strokeStyle = "rgba(242, 246, 241, 0.25)";
+    ctx.lineWidth = 1.5;
     ctx.strokeRect(6, 6, PITCH_W - 12, PITCH_H - 12);
+    
+    // Linha de meio campo
     ctx.beginPath();
     ctx.moveTo(PITCH_W / 2, 6);
     ctx.lineTo(PITCH_W / 2, PITCH_H - 6);
     ctx.stroke();
+
+    // Círculo central
     ctx.beginPath();
     ctx.arc(PITCH_W / 2, PITCH_H / 2, 45, 0, Math.PI * 2);
     ctx.stroke();
+
+    // Grandes áreas
     ctx.strokeRect(6, PITCH_H / 2 - 90, 90, 180);
     ctx.strokeRect(PITCH_W - 96, PITCH_H / 2 - 90, 90, 180);
+
+    // Pequenas áreas
     ctx.strokeRect(6, PITCH_H / 2 - 40, 36, 80);
     ctx.strokeRect(PITCH_W - 42, PITCH_H / 2 - 40, 36, 80);
   }
 
   // Desenha o bonequinho do jogador
-  function drawPlayer(ctx, p, cor, destaque, numero, playerCustom, facingRight) {
-    const { x, y } = toPx(p.x, p.y);
+  function drawPlayer(ctx, p, cor, destaque, numero, playerCustom, facingRight, isWithBall) {
+    const x = p.x;
+    const y = p.y;
 
     const skinColor = playerCustom?.pele || "#E0A96D";
     const hairColor = playerCustom?.cabeloCor || "#4A3B32";
     const hairStyle = playerCustom?.cabeloEstilo || "curto";
     const bootColor = playerCustom?.chuteira || "#FFFFFF";
 
-    // 1. Sombra sob o jogador
-    ctx.beginPath();
-    ctx.ellipse(x, y + 9, destaque ? 12 : 9, 3.5, 0, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
-    ctx.fill();
+    // 1. Destaque / Brilho Neon verde embaixo de quem está com a bola
+    if (isWithBall) {
+      ctx.beginPath();
+      ctx.ellipse(x, y + 9, 14, 6, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(0, 255, 135, 0.18)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0, 255, 135, 0.75)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    } else {
+      // Sombra padrão sob o jogador
+      ctx.beginPath();
+      ctx.ellipse(x, y + 9, destaque ? 11 : 9, 3.5, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+      ctx.fill();
+    }
 
-    // 2. Chuteiras (pezinhos saindo)
-    const shoeOffset = facingRight ? 6 : -6;
+    // 2. Chuteiras
+    const shoeOffset = facingRight ? 5.5 : -5.5;
     ctx.beginPath();
     ctx.arc(x + shoeOffset, y - 5, 2, 0, Math.PI * 2);
     ctx.arc(x + shoeOffset, y + 5, 2, 0, Math.PI * 2);
@@ -213,19 +314,19 @@ export default function Pitch2D({
     ctx.lineWidth = 0.5;
     ctx.stroke();
 
-    // 3. Tronco / Ombros / Camiseta (Jersey)
+    // 3. Tronco (Jersey)
     ctx.beginPath();
     ctx.ellipse(x, y, 6.5, 9, 0, 0, Math.PI * 2);
     ctx.fillStyle = cor || "#f2f6f1";
     ctx.fill();
-    ctx.lineWidth = destaque ? 2.2 : 1.2;
-    ctx.strokeStyle = destaque ? "#F4C430" : "rgba(4,20,15,0.4)";
+    ctx.lineWidth = destaque ? 2.5 : 1.2;
+    ctx.strokeStyle = destaque ? "#F4C430" : "rgba(4,20,15,0.45)";
     ctx.stroke();
 
-    // 4. Shorts (calção) - metade traseira/esquerda se facingRight
+    // 4. Shorts (calção)
     ctx.beginPath();
-    ctx.ellipse(x - (facingRight ? 2 : -2), y, 5, 8, 0, Math.PI * 0.5, Math.PI * 1.5);
-    ctx.fillStyle = corContrastante(cor) === "#ffffff" ? "#102A45" : "#ffffff";
+    ctx.ellipse(x - (facingRight ? 2 : -2), y, 5, 7.5, 0, Math.PI * 0.5, Math.PI * 1.5);
+    ctx.fillStyle = corContrastante(cor) === "#ffffff" ? "#0f2244" : "#ffffff";
     ctx.fill();
 
     // 5. Cabeça
@@ -253,21 +354,21 @@ export default function Pitch2D({
       ctx.beginPath();
       ctx.arc(headX - (facingRight ? 0.8 : -0.8), y, 5.6, 0, Math.PI * 2);
       ctx.fill();
-    } // careca não faz nada
+    }
 
-    // 7. Número da camisa nas costas
+    // 7. Número da camisa
     ctx.fillStyle = corContrastante(cor);
     ctx.font = `bold ${destaque ? 7.5 : 6.5}px var(--font-mono)`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(String(numero), facingRight ? x - 2.5 : x + 2.5, y + 0.5);
 
-    // 8. Aura dourada ao redor do jogador
+    // 8. Aura dourada ao redor do nosso jogador
     if (destaque) {
       ctx.beginPath();
       ctx.arc(x, y, 14, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(244,196,48,0.55)";
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(244,196,48,0.7)";
+      ctx.lineWidth = 1.2;
       ctx.stroke();
     }
   }
@@ -288,28 +389,25 @@ export default function Pitch2D({
     ctx.setLineDash([4, 4]);
     ctx.moveTo(de.x, de.y);
     ctx.lineTo(para.x, para.y);
-    ctx.strokeStyle = "rgba(244,196,48,0.35)";
+    ctx.strokeStyle = "rgba(0, 255, 135, 0.25)";
     ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.setLineDash([]);
   }
 
   function drawBallShadow(ctx, x, y, arco) {
-    // Sombra encolhe e fica mais transparente conforme a bola sobe
     const scale = Math.max(0.4, 1 - arco / 25);
     ctx.beginPath();
-    ctx.ellipse(x, y, 5 * scale, 2.5 * scale, 0, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(0, 0, 0, ${0.35 * scale})`;
+    ctx.ellipse(x, y, 5.5 * scale, 2.5 * scale, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(0, 0, 0, ${0.4 * scale})`;
     ctx.fill();
   }
 
   function drawBall(ctx, x, y, t) {
     ctx.save();
     ctx.translate(x, y);
-    // Rotaciona a bola conforme ela corre
-    ctx.rotate(t * Math.PI * 5);
+    ctx.rotate(t * Math.PI * 6);
 
-    // Corpo da bola
     ctx.beginPath();
     ctx.arc(0, 0, 4.8, 0, Math.PI * 2);
     ctx.fillStyle = "#ffffff";
@@ -318,7 +416,6 @@ export default function Pitch2D({
     ctx.lineWidth = 0.8;
     ctx.stroke();
 
-    // Costuras e gomos pretos (desenho clássico de bola de futebol)
     ctx.fillStyle = "#04140f";
     ctx.beginPath();
     ctx.arc(0, 0, 1.3, 0, Math.PI * 2);
@@ -340,7 +437,7 @@ export default function Pitch2D({
     ctx.font = `700 10px var(--font-mono)`;
     const largura = ctx.measureText(texto).width + 10;
     const rotY = y - 18;
-    ctx.fillStyle = souEu ? "rgba(244,196,48,0.92)" : "rgba(6,12,26,0.78)";
+    ctx.fillStyle = souEu ? "rgba(244,196,48,0.95)" : "rgba(6,12,26,0.85)";
     ctx.beginPath();
     if (ctx.roundRect) {
       ctx.roundRect(x - largura / 2, rotY - 8, largura, 16, 8);
@@ -355,35 +452,19 @@ export default function Pitch2D({
   }
 
   function drawGoalFlash(ctx, atacaDireita) {
-    ctx.fillStyle = "rgba(244,196,48,0.10)";
+    ctx.fillStyle = "rgba(0, 255, 135, 0.08)";
     if (atacaDireita) ctx.fillRect(PITCH_W - 96, 0, 96, PITCH_H);
     else ctx.fillRect(0, 0, 96, PITCH_H);
   }
 
   return (
     <div className="w-full">
-      <div className="flex items-center justify-between mb-2 px-1">
-        <span className="font-mono text-sm text-chalk/70">{minutoAtual}&apos;</span>
-        <span className="font-display text-2xl tracking-wide">
-          {placar.mandante} — {placar.visitante}
-        </span>
-        <span className="font-mono text-sm text-chalk/40">
-          {Math.min(seqIdx, timeline.length)}/{timeline.length}
-        </span>
-      </div>
       <canvas
         ref={canvasRef}
         width={PITCH_W}
         height={PITCH_H}
-        className="w-full h-auto rounded-lg border border-chalk/10"
+        className="w-full h-auto rounded-xl border border-chalk/10 shadow-2xl"
       />
-      <div className="mt-3 space-y-1 max-h-28 overflow-y-auto">
-        {log.map((l, i) => (
-          <div key={i} className="text-xs font-mono text-chalk/60">
-            {l.minuto}&apos; · {l.texto}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

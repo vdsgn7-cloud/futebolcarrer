@@ -4,160 +4,249 @@
 
 html, body {
   min-height: 100%;
+  color: #f2f6f1;
 }
 
 body {
+  background: #020712;
+  font-family: var(--font-mono);
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Background Stadium Lights effect */
+body::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 480px;
   background:
-    radial-gradient(1000px 500px at 50% -8%, rgba(232, 196, 104, 0.07), transparent 60%),
-    radial-gradient(800px 400px at 100% 0%, rgba(61, 220, 132, 0.05), transparent 55%),
-    #060c1a;
+    radial-gradient(ellipse 250px 150px at 10% 0%, rgba(0, 255, 135, 0.12), transparent 70%),
+    radial-gradient(ellipse 250px 150px at 90% 0%, rgba(0, 255, 135, 0.12), transparent 70%),
+    radial-gradient(circle 500px at 50% -20%, rgba(244, 196, 48, 0.08), transparent 60%),
+    radial-gradient(circle 1000px at 50% 30%, rgba(6, 12, 26, 0.9), #020712 100%);
+  pointer-events: none;
+  z-index: -2;
+}
+
+/* Stadium Floodlight Visual SVG */
+.stadium-light-beam {
+  position: absolute;
+  width: 150px;
+  height: 300px;
+  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.8), rgba(255,255,255,0.1) 20%, transparent 70%);
+  filter: blur(10px);
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: -1;
+}
+.stadium-light-left {
+  top: -50px;
+  left: 5%;
+  transform: rotate(25deg);
+}
+.stadium-light-right {
+  top: -50px;
+  right: 5%;
+  transform: rotate(-25deg);
 }
 
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
 }
 
 .font-mono {
   font-family: var(--font-mono);
 }
 
-/* Card com painel sólido e borda dourada, igual à referência */
+/* Card com painel sólido e borda dourada premium */
 .card {
-  background: #15284C;
-  border: 2px solid #F4C430;
-  border-radius: 12px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  background: linear-gradient(145deg, #0e1e38 0%, #050d1a 100%);
+  border: 1.5px solid rgba(244, 196, 48, 0.22);
+  border-radius: 14px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.55);
   position: relative;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card:hover {
+  border-color: rgba(244, 196, 48, 0.45);
+  box-shadow: 0 10px 30px rgba(244, 196, 48, 0.08);
 }
 
 .card-header {
   font-family: var(--font-display);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: #F4C430;
   text-transform: uppercase;
-  font-size: 1.05rem;
-  padding: 14px 16px 8px 16px;
-  border-bottom: 1px solid rgba(244, 196, 48, 0.3);
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 14px 16px 10px 16px;
+  border-bottom: 1.5px solid rgba(244, 196, 48, 0.2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
+/* Placar Superior Premium */
+.placar-container {
+  background: linear-gradient(180deg, #0f2244 0%, #060e1d 100%);
+  border: 2px solid #F4C430;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  z-index: 10;
+}
+
+/* Botões Modernizados */
 .btn-primary {
   background: #00FF87;
-  color: #060c1a;
+  color: #020712;
   font-family: var(--font-display);
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   font-weight: bold;
-  border-radius: 8px;
-  transition: transform 0.1s ease, background-color 0.15s ease;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 255, 135, 0.35);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.btn-primary:hover {
-  background-color: #00CC6A;
-  transform: scale(1.03);
+.btn-primary:hover:not(:disabled) {
+  background-color: #00E676;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 255, 135, 0.5);
 }
-.btn-primary:active {
-  transform: scale(0.96);
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .btn-ghost {
-  background: rgba(242, 246, 241, 0.06);
-  border: 1px solid rgba(242, 246, 241, 0.15);
+  background: rgba(242, 246, 241, 0.04);
+  border: 1px solid rgba(242, 246, 241, 0.12);
   color: #f2f6f1;
-  transition: background 0.15s ease;
+  border-radius: 10px;
+  transition: all 0.15s ease;
 }
 .btn-ghost:hover {
-  background: rgba(242, 246, 241, 0.12);
+  background: rgba(242, 246, 241, 0.09);
+  border-color: rgba(242, 246, 241, 0.25);
+  transform: translateY(-1px);
 }
 
-/* barra de progresso usada nas estatísticas de partida (chutes, faltas...) */
+/* Barra de progresso para estatísticas com estilo mockup */
 .stat-track {
-  height: 5px;
+  height: 6px;
   border-radius: 999px;
-  background: rgba(242, 246, 241, 0.1);
+  background: rgba(242, 246, 241, 0.08);
   overflow: hidden;
 }
 .stat-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #3ddc84, #1c9c5a);
+  background: linear-gradient(90deg, #00FF87, #00B359);
 }
 .stat-fill-alt {
-  background: linear-gradient(90deg, #e8c468, #b3862a);
+  background: linear-gradient(90deg, #F4C430, #C29618);
 }
 
 .crest {
-  border-radius: 8px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-display);
   border: 2px solid rgba(242, 246, 241, 0.15);
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
 }
 
 .form-dot {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.6rem;
-  font-weight: bold;
+  font-size: 0.65rem;
+  font-weight: 800;
   font-family: var(--font-mono);
-  color: #060c1a;
+  color: #020712;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 .form-v { background-color: #00FF87; }
 .form-d { background-color: #FF4C4C; color: #fff; }
-.form-e { background-color: rgba(242, 246, 241, 0.35); }
+.form-e { background-color: rgba(242, 246, 241, 0.3); color: #fff; }
 
-/* barra de navegação inferior fixa */
+/* Barra de navegação inferior */
 .bottom-nav {
-  background: linear-gradient(180deg, rgba(15, 30, 58, 0.92), rgba(6, 12, 26, 0.98));
-  border-top: 1px solid rgba(232, 196, 104, 0.15);
-  backdrop-filter: blur(6px);
+  background: linear-gradient(180deg, rgba(14, 30, 58, 0.95), rgba(4, 9, 20, 0.99));
+  border-top: 1.5px solid rgba(244, 196, 48, 0.22);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 -8px 24px rgba(0,0,0,0.6);
 }
 .nav-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  font-size: 0.6rem;
+  gap: 3px;
+  font-size: 0.65rem;
   font-family: var(--font-mono);
-  color: rgba(242, 246, 241, 0.4);
-  transition: color 0.15s ease;
+  color: rgba(242, 246, 241, 0.45);
+  transition: all 0.2s ease;
+}
+.nav-item:hover {
+  color: rgba(244, 196, 48, 0.8);
 }
 .nav-item.active {
-  color: #f0d38a;
+  color: #F4C430;
+  text-shadow: 0 0 8px rgba(244, 196, 48, 0.35);
 }
 
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(4, 9, 20, 0.3);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(244, 196, 48, 0.25);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(244, 196, 48, 0.45);
+}
+
+/* Inputs sliders */
 input[type="range"] {
   -webkit-appearance: none;
   height: 6px;
   border-radius: 999px;
-  background: rgba(242, 246, 241, 0.15);
+  background: rgba(242, 246, 241, 0.12);
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  background: #e8c468;
-  border: 2px solid #0a1428;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #F4C430;
+  border: 2.5px solid #050d1a;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
   cursor: pointer;
+  transition: transform 0.1s ease;
 }
-input[type="range"]::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  background: #e8c468;
-  border: 2px solid #0a1428;
-  cursor: pointer;
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
 }
 
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(242, 246, 241, 0.15);
-  border-radius: 999px;
+/* Grid background for field */
+.bg-stripes {
+  background-size: 40px 40px;
+  background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 }
