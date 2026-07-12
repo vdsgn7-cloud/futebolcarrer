@@ -1,16 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { loadCareer, saveCareer } from "@/lib/storage";
-import { simulateRound } from "@/lib/engine";
+import { simulateRound, simulateSelecaoRound } from "@/lib/engine";
 import { getClubeEmQualquerDivisao as getTeam } from "@/lib/divisions";
 import Pitch2D from "@/components/Pitch2D";
 
-export default function MatchPage() {
+function MatchInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isSelecao = searchParams.get("selecao") === "true";
+
   const [resultado, setResultado] = useState(null);
   const [nomeJogador, setNomeJogador] = useState("");
+  const [customizacaoJogador, setCustomizacaoJogador] = useState(null);
   const [terminou, setTerminou] = useState(false);
   const [speed, setSpeed] = useState(1);
   const rodou = useRef(false);
@@ -24,11 +28,17 @@ export default function MatchPage() {
       return;
     }
     setNomeJogador(career.player.nome);
-    const { career: novaCareer, partida } = simulateRound(career);
+    setCustomizacaoJogador(career.player.customizacao);
+    
+    // Simula rodada de clube ou de seleção
+    const { career: novaCareer, partida } = isSelecao
+      ? simulateSelecaoRound(career)
+      : simulateRound(career);
+      
     saveCareer(novaCareer);
     setResultado(partida);
     if (!partida.jogadorJogou) setTerminou(true);
-  }, [router]);
+  }, [router, isSelecao]);
 
   if (!resultado) {
     return (
@@ -38,8 +48,8 @@ export default function MatchPage() {
     );
   }
 
-  const mandante = getTeam(resultado.mandanteId);
-  const visitante = getTeam(resultado.visitanteId);
+  const mandante = getTeam(resultado.mandanteId) || { name: resultado.nomeMandante, cor: resultado.corMandante };
+  const visitante = getTeam(resultado.visitanteId) || { name: resultado.nomeVisitante, cor: resultado.corVisitante };
 
   // rodada em que o jogador não pôde atuar: tela compacta, sem animação
   if (!resultado.jogadorJogou) {
@@ -95,6 +105,7 @@ export default function MatchPage() {
             titularesVisitante={resultado.titularesVisitante}
             meuSlot={resultado.meuSlot}
             meuNome={nomeJogador}
+            customizacaoJogador={customizacaoJogador}
             speed={speed}
             onFinish={() => setTerminou(true)}
           />
@@ -214,5 +225,13 @@ function StatRow({ label, a, b, pa, pb }) {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function MatchPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-display text-2xl text-gold-400">CARREGANDO PARTIDA...</div>}>
+      <MatchInner />
+    </Suspense>
   );
 }

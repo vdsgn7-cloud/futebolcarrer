@@ -37,6 +37,7 @@ export default function Pitch2D({
   titularesVisitante,
   meuSlot,
   meuNome,
+  customizacaoJogador, // customização do jogador principal
   onFinish,
   speed = 1,
 }) {
@@ -116,8 +117,20 @@ export default function Pitch2D({
     ctx.clearRect(0, 0, PITCH_W, PITCH_H);
     drawField(ctx);
 
-    mandantePos.forEach((p, i) => drawPlayer(ctx, p, corMandante, "mandante" === meuLado && i === meuSlot, i + 1));
-    visitantePos.forEach((p, i) => drawPlayer(ctx, p, corVisitante, "visitante" === meuLado && i === meuSlot, i + 1));
+    // Renderiza os jogadores mandantes e visitantes com aparência procedimental
+    mandantePos.forEach((p, i) => {
+      const isMe = "mandante" === meuLado && i === meuSlot;
+      const playerCustom = isMe ? customizacaoJogador : titularesMandante?.[i]?.customizacao;
+      const numero = isMe ? (customizacaoJogador?.numero || i + 1) : (titularesMandante?.[i]?.numero || i + 1);
+      drawPlayer(ctx, p, corMandante, isMe, numero, playerCustom, true);
+    });
+
+    visitantePos.forEach((p, i) => {
+      const isMe = "visitante" === meuLado && i === meuSlot;
+      const playerCustom = isMe ? customizacaoJogador : titularesVisitante?.[i]?.customizacao;
+      const numero = isMe ? (customizacaoJogador?.numero || i + 1) : (titularesVisitante?.[i]?.numero || i + 1);
+      drawPlayer(ctx, p, corVisitante, isMe, numero, playerCustom, false);
+    });
 
     const posArray = seq.time === "mandante" ? mandantePos : visitantePos;
     const slotDe = seq.passes[hop];
@@ -125,14 +138,20 @@ export default function Pitch2D({
     const de = toPx(posArray[slotDe].x, posArray[slotDe].y);
     const para = toPx(posArray[slotPara].x, posArray[slotPara].y);
 
-    // arco leve no passe (sobe e desce) pra ficar visualmente claro que é
-    // uma bola trocando de pé, não deslizando no chão
-    const arco = Math.sin(Math.min(t, 1) * Math.PI) * 10;
-    const ballX = de.x + (para.x - de.x) * t;
-    const ballY = de.y + (para.y - de.y) * t - arco;
+    // Trajetória no chão (sombra) e bola no ar (arco 3D)
+    const groundX = de.x + (para.x - de.x) * t;
+    const groundY = de.y + (para.y - de.y) * t;
+    const arco = Math.sin(Math.min(t, 1) * Math.PI) * 12; // Altura do chute
+    const ballX = groundX;
+    const ballY = groundY - arco;
 
     drawPassLine(ctx, de, para);
-    drawBall(ctx, ballX, ballY);
+    
+    // Desenha a sombra da bola no chão
+    drawBallShadow(ctx, groundX, groundY, arco);
+    
+    // Desenha a bola de futebol girando
+    drawBall(ctx, ballX, ballY, t);
 
     // rótulo com o nome de quem está com a bola
     const slotRotulo = t < 0.5 ? slotDe : slotPara;
@@ -140,7 +159,6 @@ export default function Pitch2D({
     drawRotulo(ctx, ballX, ballY, nomeRotulo, slotRotulo === meuSlot && seq.time === meuLado);
 
     // desfecho: gol / chute / posse perdida, exibido no último "frame"
-    // (hop >= totalHops é tratado no efeito, mas ainda chamamos draw com t=1)
     if (hop >= seq.passes.length - 1 && seq.tipo !== "buildup") {
       drawGoalFlash(ctx, seq.time === "mandante");
     }
@@ -169,26 +187,85 @@ export default function Pitch2D({
     ctx.strokeRect(PITCH_W - 42, PITCH_H / 2 - 40, 36, 80);
   }
 
-  function drawPlayer(ctx, p, cor, destaque, numero) {
+  // Desenha o bonequinho do jogador
+  function drawPlayer(ctx, p, cor, destaque, numero, playerCustom, facingRight) {
     const { x, y } = toPx(p.x, p.y);
-    const raio = destaque ? 11 : 9;
+
+    const skinColor = playerCustom?.pele || "#E0A96D";
+    const hairColor = playerCustom?.cabeloCor || "#4A3B32";
+    const hairStyle = playerCustom?.cabeloEstilo || "curto";
+    const bootColor = playerCustom?.chuteira || "#FFFFFF";
+
+    // 1. Sombra sob o jogador
     ctx.beginPath();
-    ctx.arc(x, y, raio, 0, Math.PI * 2);
-    ctx.fillStyle = cor || "#f2f6f1";
+    ctx.ellipse(x, y + 9, destaque ? 12 : 9, 3.5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
     ctx.fill();
-    ctx.lineWidth = destaque ? 2.5 : 1.5;
-    ctx.strokeStyle = destaque ? "#F4C430" : "rgba(4,20,15,0.6)";
+
+    // 2. Chuteiras (pezinhos saindo)
+    const shoeOffset = facingRight ? 6 : -6;
+    ctx.beginPath();
+    ctx.arc(x + shoeOffset, y - 5, 2, 0, Math.PI * 2);
+    ctx.arc(x + shoeOffset, y + 5, 2, 0, Math.PI * 2);
+    ctx.fillStyle = bootColor;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.4)";
+    ctx.lineWidth = 0.5;
     ctx.stroke();
 
+    // 3. Tronco / Ombros / Camiseta (Jersey)
+    ctx.beginPath();
+    ctx.ellipse(x, y, 6.5, 9, 0, 0, Math.PI * 2);
+    ctx.fillStyle = cor || "#f2f6f1";
+    ctx.fill();
+    ctx.lineWidth = destaque ? 2.2 : 1.2;
+    ctx.strokeStyle = destaque ? "#F4C430" : "rgba(4,20,15,0.4)";
+    ctx.stroke();
+
+    // 4. Shorts (calção) - metade traseira/esquerda se facingRight
+    ctx.beginPath();
+    ctx.ellipse(x - (facingRight ? 2 : -2), y, 5, 8, 0, Math.PI * 0.5, Math.PI * 1.5);
+    ctx.fillStyle = corContrastante(cor) === "#ffffff" ? "#102A45" : "#ffffff";
+    ctx.fill();
+
+    // 5. Cabeça
+    const headX = facingRight ? x + 1.5 : x - 1.5;
+    ctx.beginPath();
+    ctx.arc(headX, y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = skinColor;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.15)";
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // 6. Cabelo
+    ctx.fillStyle = hairColor;
+    if (hairStyle === "curto") {
+      ctx.beginPath();
+      ctx.arc(headX - (facingRight ? 1.2 : -1.2), y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (hairStyle === "longo") {
+      ctx.beginPath();
+      ctx.arc(headX - (facingRight ? 1.5 : -1.5), y, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(headX - (facingRight ? 4 : 0), y - 2, 4, 4);
+    } else if (hairStyle === "black") {
+      ctx.beginPath();
+      ctx.arc(headX - (facingRight ? 0.8 : -0.8), y, 5.6, 0, Math.PI * 2);
+      ctx.fill();
+    } // careca não faz nada
+
+    // 7. Número da camisa nas costas
     ctx.fillStyle = corContrastante(cor);
-    ctx.font = `bold ${destaque ? 10 : 9}px var(--font-mono)`;
+    ctx.font = `bold ${destaque ? 7.5 : 6.5}px var(--font-mono)`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(String(numero), x, y + 0.5);
+    ctx.fillText(String(numero), facingRight ? x - 2.5 : x + 2.5, y + 0.5);
 
+    // 8. Aura dourada ao redor do jogador
     if (destaque) {
       ctx.beginPath();
-      ctx.arc(x, y, raio + 4, 0, Math.PI * 2);
+      ctx.arc(x, y, 14, 0, Math.PI * 2);
       ctx.strokeStyle = "rgba(244,196,48,0.55)";
       ctx.lineWidth = 1;
       ctx.stroke();
@@ -217,21 +294,52 @@ export default function Pitch2D({
     ctx.setLineDash([]);
   }
 
-  function drawBall(ctx, x, y) {
+  function drawBallShadow(ctx, x, y, arco) {
+    // Sombra encolhe e fica mais transparente conforme a bola sobe
+    const scale = Math.max(0.4, 1 - arco / 25);
     ctx.beginPath();
-    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.ellipse(x, y, 5 * scale, 2.5 * scale, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(0, 0, 0, ${0.35 * scale})`;
+    ctx.fill();
+  }
+
+  function drawBall(ctx, x, y, t) {
+    ctx.save();
+    ctx.translate(x, y);
+    // Rotaciona a bola conforme ela corre
+    ctx.rotate(t * Math.PI * 5);
+
+    // Corpo da bola
+    ctx.beginPath();
+    ctx.arc(0, 0, 4.8, 0, Math.PI * 2);
     ctx.fillStyle = "#ffffff";
     ctx.fill();
-    ctx.strokeStyle = "#07231a";
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = "#04140f";
+    ctx.lineWidth = 0.8;
     ctx.stroke();
+
+    // Costuras e gomos pretos (desenho clássico de bola de futebol)
+    ctx.fillStyle = "#04140f";
+    ctx.beginPath();
+    ctx.arc(0, 0, 1.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#04140f";
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(0, -1.3); ctx.lineTo(0, -4.2);
+    ctx.moveTo(-1.1, 0.7); ctx.lineTo(-3.3, 2.3);
+    ctx.moveTo(1.1, 0.7); ctx.lineTo(3.3, 2.3);
+    ctx.stroke();
+
+    ctx.restore();
   }
 
   function drawRotulo(ctx, x, y, nome, souEu) {
     const texto = souEu ? `★ ${sobrenome(nome)}` : sobrenome(nome);
     ctx.font = `700 10px var(--font-mono)`;
     const largura = ctx.measureText(texto).width + 10;
-    const rotY = y - 16;
+    const rotY = y - 18;
     ctx.fillStyle = souEu ? "rgba(244,196,48,0.92)" : "rgba(6,12,26,0.78)";
     ctx.beginPath();
     if (ctx.roundRect) {

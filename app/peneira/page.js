@@ -25,7 +25,7 @@ export default function PeneiraPage() {
       return;
     }
     setDraft(d);
-    const r = simulatePeneira(d.nome, d.atributos, d.posicao);
+    const r = simulatePeneira(d.nome, d.atributos, d.posicao, d.customizacao);
     setResultado(r);
   }, [router]);
 
@@ -85,6 +85,7 @@ export default function PeneiraPage() {
             titularesVisitante={resultado.titularesVisitante}
             meuSlot={resultado.meuSlot}
             meuNome={draft.nome}
+            customizacaoJogador={draft.customizacao}
             speed={speed}
             onFinish={() => setTerminou(true)}
           />
