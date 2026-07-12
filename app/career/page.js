@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadCareer, saveCareer } from "@/lib/storage";
-import { getTeam } from "@/lib/teams";
+import { getClubeEmQualquerDivisao as getTeam, DIVISOES } from "@/lib/divisions";
 import { getTableSorted, startNewSeason, statusJogador } from "@/lib/engine";
 import { POSITIONS, ATTRIBUTES } from "@/lib/positions";
 import BottomNav from "@/components/BottomNav";
@@ -69,6 +69,7 @@ export default function CareerHub() {
           <div className="p-4 flex flex-col items-center text-center gap-2">
             <PlayerAvatar nome={career.player.nome} cor={time.cor} />
             <div className="text-xs text-chalk/60">{time.name}</div>
+            <div className="text-[9px] text-chalk/35 font-mono">{DIVISOES[career.divisao]}</div>
             <div className="text-[10px] text-chalk/40">
               {POSITIONS[career.player.posicao].label} · {career.player.idade} anos
             </div>
@@ -118,21 +119,40 @@ export default function CareerHub() {
         </div>
       ) : (
         <div className="card overflow-hidden mb-3">
-          <div className="card-header">PRÓXIMO JOGO · RODADA {career.rodada + 1}/38</div>
+          <div className="card-header">PRÓXIMO JOGO</div>
           <div className="p-4">
             {partidaJogador && (
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-3">
                 <TimeChip teamId={partidaJogador.mandante} destaque={partidaJogador.mandante === career.player.clubeId} />
-                <span className="font-display text-lg text-chalk/40">vs</span>
+                <span className="font-display text-xl text-gold-400">VS</span>
                 <TimeChip teamId={partidaJogador.visitante} destaque={partidaJogador.visitante === career.player.clubeId} />
               </div>
             )}
-            <button
-              onClick={() => router.push("/match")}
-              className="btn-primary w-full py-3.5 rounded-lg font-display text-lg tracking-wide"
-            >
-              {status.texto === "Disponível" ? "SIMULAR PARTIDA" : "SIMULAR (SEM O JOGADOR)"}
-            </button>
+            <div className="text-center text-xs text-chalk/40 font-mono mb-4">
+              RODADA {career.rodada + 1}/38
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex gap-1">
+                {career.formaRecente.length === 0 ? (
+                  <span className="text-[10px] text-chalk/30 font-mono">SEM HISTÓRICO</span>
+                ) : (
+                  career.formaRecente.map((r, i) => (
+                    <div
+                      key={i}
+                      className={`form-dot ${r === "V" ? "form-v" : r === "D" ? "form-d" : "form-e"}`}
+                    >
+                      {r}
+                    </div>
+                  ))
+                )}
+              </div>
+              <button
+                onClick={() => router.push("/match")}
+                className="btn-primary px-6 py-2.5 rounded-lg font-display text-base tracking-wide"
+              >
+                {status.texto === "Disponível" ? "PARTIDA" : "SIMULAR"}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -153,7 +173,7 @@ export default function CareerHub() {
 
       {/* tabela */}
       <div className="card overflow-hidden">
-        <div className="card-header">TABELA · SÉRIE A</div>
+        <div className="card-header">TABELA · {DIVISOES[career.divisao]}</div>
         <div className="p-4 overflow-x-auto">
           <table className="w-full text-xs font-mono">
             <thead>
@@ -204,11 +224,15 @@ function Stat({ label, value }) {
 function TimeChip({ teamId, destaque }) {
   const time = getTeam(teamId);
   return (
-    <div className="flex flex-col items-center gap-1 w-24">
+    <div className="flex flex-col items-center gap-1.5 w-24">
       <div
-        className="w-8 h-8 crest"
-        style={{ background: time.cor, borderColor: destaque ? "#e8c468" : "rgba(242,246,241,0.15)" }}
-      />
+        className="w-14 h-14 crest"
+        style={{ background: time.cor, borderColor: destaque ? "#F4C430" : "rgba(242,246,241,0.15)" }}
+      >
+        <span className="text-xs text-white/90" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>
+          {time.name.slice(0, 3).toUpperCase()}
+        </span>
+      </div>
       <span className={`text-[11px] text-center leading-tight ${destaque ? "text-gold-400" : "text-chalk/70"}`}>
         {time.name}
       </span>

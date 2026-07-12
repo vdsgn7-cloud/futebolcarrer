@@ -1,8 +1,9 @@
 # Carreira Brasileirão ⚽
 
-Modo carreira de futebol em campo 2D. Crie seu jogador, escolha um clube da
-Série A e jogue o Brasileirão inteiro rodada a rodada, acompanhando a partida
-num campo visto de cima com "bolinhas" se movendo — estilo retrô.
+Modo carreira de futebol em campo 2D. Crie seu jogador, jogue a peneira,
+assine com um clube (de qualquer divisão, Série A à D) e viva a carreira
+rodada a rodada — com passes de verdade em campo, cartões, lesões,
+contrato, salário e um agente que negocia por você.
 
 Feito em **Next.js 14** (App Router) + **Tailwind CSS** + **Canvas API**, sem
 backend: tudo roda no navegador e o save fica no `localStorage`.
@@ -20,86 +21,116 @@ Abra `http://localhost:3000`.
 > as fontes (Bebas Neue, Barlow, JetBrains Mono) do Google Fonts — isso exige
 > internet no momento do build. Na Vercel isso acontece automaticamente.
 
+⚠️ **Save incompatível com versões anteriores**: a estrutura da carreira
+mudou bastante (divisão, contrato, transferências, foco de treino). Se você
+tinha uma carreira salva de um zip anterior, apague o save na tela inicial
+e comece uma nova.
+
 ## Como jogar
 
 1. **Nova Carreira** → escolha nome, nacionalidade, posição e distribua os
-   pontos de atributo (320 pontos pra dividir entre Ritmo, Finalização,
-   Passe, Defesa, Físico e Drible).
-2. Escolha um clube da Série A pra defender.
-3. Na tela de carreira (HOME), clique em **Simular Partida** a cada rodada.
-   O jogo simula a rodada inteira (seu jogo em detalhe + os outros 9 jogos de
-   forma rápida) e anima sua partida no campo 2D.
+   320 pontos de atributo (Ritmo, Finalização, Passe, Defesa, Físico, Drible).
+2. **Peneira** → uma partida-teste contra uma escolinha regional. Olheiros de
+   vários clubes (de qualquer divisão) avaliam seu desempenho e fazem
+   propostas de contrato — escolha uma pra começar sua carreira. Se não
+   rolar nenhuma proposta boa, dá pra tentar de novo.
+3. Na tela de carreira (HOME), clique em **PARTIDA** a cada rodada. O jogo
+   simula a rodada inteira (seu jogo em detalhe + os outros 9 jogos de forma
+   rápida) e anima sua partida no campo 2D — com passes reais entre
+   jogadores nomeados e numerados, não bola "viajando" aleatória.
 4. Acompanhe gols, assistências, nota, estatísticas completas da partida
    (posse, chutes, escanteios, faltas, cartões) e a tabela do campeonato.
 5. Cartões amarelos acumulam — na 3ª você cumpre 1 rodada de suspensão.
-   Cartão vermelho também gera suspensão. Lesões tiram você de ação por
-   algumas rodadas — nesses casos seu time joga sem você (tela resumida,
-   sem animação).
-6. Use a aba **TREINO** pra gastar pontos (1 por rodada disputada, jogando
-   ou não) melhorando os atributos que quiser.
+   Cartão vermelho também suspende, e ele "desliga" sua participação nos
+   gols depois do minuto da expulsão. Lesões tiram você de ação por algumas
+   rodadas — nesses casos seu time joga sem você (tela resumida, sem
+   animação).
+6. Use a aba **TREINO** pra escolher um atributo em foco pra temporada — ele
+   ganha um empurrão extra de evolução quando a temporada vira (os outros
+   também evoluem um pouco, ou regridem se você estiver envelhecendo).
 7. A aba **ELENCO** mostra o elenco do seu clube (nomes gerados, ver nota
    abaixo) com você destacado na lista.
-8. **MERCADO** e **NOTÍCIAS** — a segunda já mostra o retrospecto rodada a
-   rodada; a primeira é onde vai entrar salário/contrato/agente (ver
-   "Próximos passos").
-9. Ao final das 38 rodadas, inicie a próxima temporada — seu jogador envelhece
-   e evolui um pouco se ainda for jovem.
+8. Na aba **MERCADO**, seu agente sonda o mercado e traz propostas de outros
+   clubes — aceitar uma agenda uma transferência pra próxima temporada.
+   Acompanhe também seu salário mensal e o saldo acumulado na carreira.
+9. **NOTÍCIAS** mostra o retrospecto rodada a rodada da temporada.
+10. Ao final das 38 rodadas, inicie a próxima temporada — seu jogador
+    envelhece, evolui (ou regride, se estiver mais velho), o contrato anda
+    uma temporada, e qualquer transferência aceita no Mercado é efetivada.
 
 ## Estrutura do projeto
 
 ```
 app/
   page.js              → tela inicial (nova carreira / continuar)
-  create-player/       → criação do jogador
+  create-player/       → criação do jogador (sem escolher clube — isso vem da peneira)
+  peneira/               → partida-teste + propostas iniciais de contrato
   career/               → hub da carreira (player card, radar, tabela, próxima partida)
   match/                → tela da partida (placar, campo 2D, estatísticas, lance a lance)
   elenco/                → elenco do clube (nomes gerados) com você destacado
-  treino/                → gasto de pontos de treino nos atributos
-  mercado/                → placeholder da fase de contrato/negociação (próximo passo)
+  treino/                → escolha do foco de treino da temporada
+  mercado/                → contrato, salário, propostas de transferência
   noticias/               → retrospecto rodada a rodada da temporada
 components/
-  Pitch2D.jsx           → o campo 2D (canvas) que anima a partida
+  Pitch2D.jsx           → o campo 2D (canvas): passes reais entre slots, números, nomes
   RadarChart.jsx        → gráfico radar (pentágono) dos atributos, em SVG puro
   PlayerAvatar.jsx      → avatar circular gerado (iniciais + cor do clube)
   BottomNav.jsx         → barra de navegação inferior (Home/Elenco/Treino/Mercado/Notícias)
 lib/
-  teams.js              → os 20 clubes da Série A e seus ratings
+  teams.js              → os 20 clubes da Série A (reais) e seus ratings
+  divisions.js           → Séries B, C e D (fictícias) + helpers pra buscar clube/divisão
   countries.js          → lista de nacionalidades
-  positions.js           → posições, pesos de atributo, formação 4-3-3
+  positions.js           → posições, pesos de atributo, formação 4-3-3, linhas de passe
   schedule.js           → gerador de tabela de jogos (turno-returno, 38 rodadas)
-  engine.js             → o motor da simulação (placar, cartões, lesões, estatísticas, evolução)
-  names.js / squad.js   → gerador procedural de nomes e elencos (determinístico por clube)
-  storage.js             → salvar/carregar a carreira no localStorage
+  engine.js             → o motor: simulação, cadeias de passe, cartões, lesões,
+                           treino, peneira, propostas de contrato e transferências
+  names.js / squad.js   → gerador procedural de nomes, elencos e titulares (determinístico)
+  storage.js             → salvar/carregar a carreira (e o rascunho pré-peneira) no localStorage
 ```
+
+## Como funciona a simulação visual (campo 2D)
+
+Cada lance da partida é uma cadeia de passes real: a bola nasce no goleiro
+(slot 0 da formação 4-3-3) e caminha por um grafo de "linhas de passe" entre
+os 11 jogadores até o ataque — nunca pula aleatoriamente pelo campo. Cada
+bolinha tem um número de camisa (posição na formação) e, enquanto a bola
+está com alguém, aparece uma etiqueta com o sobrenome desse jogador — o seu
+jogador aparece com uma estrela e destaque dourado. A cadeia de passes é
+enviesada pela qualidade do jogador na posição dele: quanto melhor o
+overall, mais vezes a jogada termina nos pés dele.
 
 ## O que tem de novo nessa versão
 
-- **Simulação mais realista**: cada partida agora gera posse de bola, chutes,
-  chutes a gol, escanteios, faltas e cartões amarelos pra ambos os times —
-  tudo exibido em barras comparativas na tela de partida.
-- **Cartões**: seu jogador pode ser advertido durante a partida (mais chance
-  pra zagueiros/volantes). 3 amarelos na temporada = 1 rodada de suspensão;
-  cartão vermelho suspende direto, e ele para de contribuir com gols depois
-  do minuto da expulsão.
-- **Lesões**: chance pequena a cada partida jogada; a duração varia (lesão
-  leve: 1-2 rodadas, mais grave: 3-6). Enquanto lesionado/suspenso, seu time
-  joga sem o bônus dele e a tela de partida mostra só o placar final.
-- **Substituições**: eventos de ambientação no lance a lance.
+- **Peneira**: novo ponto de partida da carreira. Substitui a escolha direta
+  de clube por uma partida-teste + propostas de olheiros de qualquer divisão.
+- **Séries B, C e D**: clubes fictícios (ver nota abaixo) em 3 divisões
+  extras, usados pelas propostas de peneira/mercado. A engine funciona
+  igual em qualquer divisão (tabela, calendário, simulação).
+- **Contrato, salário e agente**: seu jogador tem contrato (salário mensal,
+  duração), acumula saldo com o passar das temporadas, e a aba Mercado deixa
+  negociar novas propostas — a transferência só é efetivada na próxima
+  temporada (mais realista que trocar de time no meio do campeonato).
+- **Treino reformulado**: em vez de ganhar pontos por rodada (o que deixava
+  o jogador overpowered rapidinho), agora você escolhe 1 foco por temporada,
+  que ganha um bônus de evolução na virada — crescimento mais lento e
+  realista, com leve declínio depois dos 30 anos.
+- **Campo 2D com passes reais**: reescrita completa da visualização — bola
+  troca de pé entre jogadores nomeados/numerados seguindo linhas de passe de
+  verdade, em vez de "flutuar" aleatoriamente pelo campo.
+- **Simulação mais realista**: estatísticas completas por partida (posse,
+  chutes, escanteios, faltas, cartões), cartões pro seu jogador (acúmulo →
+  suspensão), lesões, substituições de ambientação.
 - **Elenco procedural**: cada clube tem 15 companheiros de time gerados com
-  nomes (brasileiros e alguns estrangeiros conforme a força do clube) —
-  visual apenas, não entra nos cálculos da partida.
-- **Treino**: 1 ponto por rodada disputada (jogando ou não), gasto pra subir
-  +2 em qualquer atributo.
-- **Visual redesenhado**: tema navy + dourado, cards com friso e cabeçalho
-  destacados, gráfico radar de atributos, e barra de navegação inferior —
-  inspirado em referências de HUD de jogos de carreira de futebol.
+  nomes — visual apenas, não entra nos cálculos da partida.
+- **Visual navy + dourado**: cards com friso e cabeçalho destacados, gráfico
+  radar de atributos, barra de navegação inferior.
 
 ## Publicando no GitHub
 
 ```bash
 git init
 git add .
-git commit -m "Carreira Brasileirão - MVP"
+git commit -m "Carreira Brasileirão"
 git branch -M main
 git remote add origin https://github.com/SEU_USUARIO/NOME_DO_REPO.git
 git push -u origin main
@@ -113,30 +144,28 @@ git push -u origin main
    mudar nenhuma configuração. Clique em **Deploy**.
 4. Pronto — a cada `git push` na branch `main`, a Vercel republica sozinha.
 
-## Próximos passos (roadmap combinado)
+## Próximos passos (ideias pra continuar evoluindo)
 
-- **Séries B, C e D + acesso/rebaixamento**: expandir `lib/teams.js` pra
-  4 divisões com times por rating, e no fim de temporada mover os times
-  entre elas conforme a posição na tabela.
-- **Peneira inicial + olheiros**: começar a carreira como jogador sem clube,
-  jogar uma partida-teste e receber propostas de clubes menores conforme o
-  desempenho.
-- **Salário, contrato e agente**: renda mensal, duração de contrato,
-  renovação e um "agente" que intermedia propostas de outros clubes.
+- **Acesso e rebaixamento**: mover clubes entre divisões no fim da
+  temporada conforme a posição na tabela (hoje as divisões são fixas).
 - **Vida social**: decisões semanais (treinar extra / descansar / sair)
   afetando forma física e moral, sem virar sistema de vício ou pressão.
 - **Seleção nacional**: convocações se a média de notas estiver alta.
-- **Edição visual do campo**: trocar as bolinhas por sprites/times com escudo.
-- **Outras ligas do mundo**: hoje só o Brasileirão está modelado em
-  `lib/teams.js` — dá pra criar `lib/leagues/premierLeague.js` etc. e um
-  seletor de liga na criação do jogador. A estrutura de `engine.js` já é
-  genérica o suficiente pra funcionar com qualquer lista de 20 times.
+- **Edição visual do campo**: trocar as bolinhas por sprites/escudos reais.
+- **Outras ligas do mundo**: hoje só o Brasileirão (4 divisões) está
+  modelado — dá pra criar `lib/leagues/premierLeague.js` etc. e um seletor
+  de liga/país na criação do jogador. A engine já é genérica o suficiente
+  pra qualquer lista de 20 times.
 - **Persistência em nuvem**: trocar `lib/storage.js` por Supabase (você já
   usa isso no seu SaaS de notas fiscais) pra jogar em vários dispositivos.
 
 ## Sobre os dados dos times
 
-Os 20 clubes em `lib/teams.js` (nomes, força geral, cores) são uma
-aproximação livre pra fins de jogo — edite os campos `overall`, `ataque`,
-`defesa` e `cor` à vontade pra ajustar o equilíbrio ou atualizar conforme
-a temporada real.
+Os 20 clubes da Série A em `lib/teams.js` são clubes reais e conhecidos
+(nomes, força geral e cores são uma aproximação livre pra fins de jogo).
+Já as Séries B, C e D em `lib/divisions.js` usam **clubes fictícios** — a
+composição real dessas divisões muda todo ano por acesso/rebaixamento, então
+qualquer lista "real" ficaria desatualizada rápido; preferimos não prometer
+uma precisão que não temos como manter. Edite os campos `overall`, `ataque`,
+`defesa` e `cor` à vontade em qualquer um dos arquivos pra ajustar o
+equilíbrio.

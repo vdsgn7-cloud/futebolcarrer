@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadCareer } from "@/lib/storage";
-import { getTeam } from "@/lib/teams";
+import { getClubeEmQualquerDivisao as getTeam } from "@/lib/divisions";
 import BottomNav from "@/components/BottomNav";
 
 export default function NoticiasPage() {

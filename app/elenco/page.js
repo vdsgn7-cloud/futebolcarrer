@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadCareer } from "@/lib/storage";
-import { getTeam } from "@/lib/teams";
+import { getClubeEmQualquerDivisao as getTeam } from "@/lib/divisions";
 import { gerarElenco } from "@/lib/squad";
 import { overallForPosition } from "@/lib/positions";
 import BottomNav from "@/components/BottomNav";

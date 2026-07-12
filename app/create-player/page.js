@@ -4,9 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { COUNTRIES } from "@/lib/countries";
 import { POSITIONS, POSITION_ORDER, ATTRIBUTES, overallForPosition } from "@/lib/positions";
-import { TEAMS } from "@/lib/teams";
-import { createInitialCareer } from "@/lib/engine";
-import { saveCareer } from "@/lib/storage";
+import { saveDraft } from "@/lib/storage";
 
 const TOTAL_PONTOS = 320;
 const MIN_ATTR = 25;
@@ -17,7 +15,6 @@ export default function CreatePlayer() {
   const [nome, setNome] = useState("");
   const [nacionalidade, setNacionalidade] = useState("Brasil");
   const [posicao, setPosicao] = useState("ATA");
-  const [clubeId, setClubeId] = useState(TEAMS[TEAMS.length - 1].id);
   const [attrs, setAttrs] = useState({
     ritmo: 50, finalizacao: 50, passe: 50, defesa: 50, fisico: 50, drible: 50,
   });
@@ -42,17 +39,10 @@ export default function CreatePlayer() {
     return nome.trim().length >= 2;
   }
 
-  function iniciar() {
+  function irPraPeneira() {
     if (!podeConfirmar()) return;
-    const career = createInitialCareer({
-      nome: nome.trim(),
-      nacionalidade,
-      posicao,
-      clubeId,
-      atributos: attrs,
-    });
-    saveCareer(career);
-    router.push("/career");
+    saveDraft({ nome: nome.trim(), nacionalidade, posicao, atributos: attrs });
+    router.push("/peneira");
   }
 
   return (
@@ -104,29 +94,14 @@ export default function CreatePlayer() {
           <div className="text-xs text-chalk/40 mt-1">{POSITIONS[posicao].label}</div>
         </div>
 
-        <div>
-          <label className="text-xs text-chalk/50 font-mono block mb-2">CLUBE</label>
-          <select
-            value={clubeId}
-            onChange={(e) => setClubeId(e.target.value)}
-            className="w-full bg-white/5 border border-chalk/15 rounded-lg px-3 py-2.5 text-chalk focus:outline-none focus:border-gold-500"
-          >
-            {TEAMS.map((t) => (
-              <option key={t.id} value={t.id} className="bg-navy-900">
-                {t.name} — {t.uf} (força {t.overall})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="card p-4">
-          <div className="flex items-center justify-between mb-3">
-            <label className="text-xs text-chalk/50 font-mono">ATRIBUTOS</label>
+        <div className="card overflow-hidden">
+          <div className="card-header flex items-center justify-between">
+            <span>ATRIBUTOS</span>
             <span className={`text-xs font-mono ${pontosRestantes < 0 ? "text-ember" : "text-gold-400"}`}>
-              {pontosRestantes} pontos restantes
+              {pontosRestantes} pontos
             </span>
           </div>
-          <div className="space-y-4">
+          <div className="p-4 space-y-4">
             {ATTRIBUTES.map((a) => (
               <div key={a.key}>
                 <div className="flex justify-between text-sm mb-1">
@@ -143,19 +118,24 @@ export default function CreatePlayer() {
                 />
               </div>
             ))}
-          </div>
-          <div className="mt-4 pt-3 border-t border-chalk/10 flex items-center justify-between">
-            <span className="text-xs text-chalk/50">Overall na posição ({posicao})</span>
-            <span className="font-display text-2xl text-gold-400">{overall}</span>
+            <div className="pt-3 border-t border-chalk/10 flex items-center justify-between">
+              <span className="text-xs text-chalk/50">Overall na posição ({posicao})</span>
+              <span className="font-display text-2xl text-gold-400">{overall}</span>
+            </div>
           </div>
         </div>
 
+        <div className="text-xs text-chalk/40 leading-relaxed px-1">
+          Você ainda não tem clube — o próximo passo é a peneira: uma partida-teste onde
+          olheiros avaliam seu desempenho e clubes fazem propostas.
+        </div>
+
         <button
-          onClick={iniciar}
+          onClick={irPraPeneira}
           disabled={!podeConfirmar()}
           className="btn-primary w-full py-4 rounded-lg font-display text-xl tracking-wide disabled:opacity-40"
         >
-          COMEÇAR CARREIRA
+          IR PRA PENEIRA
         </button>
       </div>
     </main>

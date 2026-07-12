@@ -5,41 +5,60 @@ import { FORMATION_433 } from "@/lib/positions";
 
 const PITCH_W = 700;
 const PITCH_H = 440;
+const HOP_MS = 480; // duração de cada passe (antes de aplicar o multiplicador de velocidade)
+const PAUSA_DESFECHO_MS = 900;
 
 function toPx(xPct, yPct) {
   return { x: (xPct / 100) * PITCH_W, y: (yPct / 100) * PITCH_H };
 }
 
-// Gera as posições-base (em %) de um time em campo, atacando pra direita
-// se "atacaDireita" for true, senão espelha pro outro lado.
+// Posições-base (em %) de um time em campo, atacando pra direita se
+// "atacaDireita", senão espelhado — os índices batem 1:1 com os slots
+// da FORMATION_433 (e por isso também com os titulares gerados).
 function basePositions(atacaDireita) {
-  return FORMATION_433.map((slot) => {
-    const x = atacaDireita ? slot.x : 100 - slot.x;
-    return { ...slot, x };
-  });
-}
-
-// Desloca levemente a formação de acordo com a fase do jogo (fase vai de
-// -1 = defendendo no próprio campo, a +1 = atacando no campo adversário).
-function shiftForPhase(positions, atacaDireita, fase) {
-  const dir = atacaDireita ? 1 : -1;
-  return positions.map((p) => ({
-    ...p,
-    x: Math.max(4, Math.min(96, p.x + dir * fase * 14)),
+  return FORMATION_433.map((slot) => ({
+    ...slot,
+    x: atacaDireita ? slot.x : 100 - slot.x,
   }));
 }
 
-export default function Pitch2D({ timeline, isHome, corMandante, corVisitante, onFinish, speed = 1 }) {
+function sobrenome(nomeCompleto) {
+  if (!nomeCompleto) return "";
+  const partes = nomeCompleto.split(" ");
+  return partes[partes.length - 1];
+}
+
+export default function Pitch2D({
+  timeline,
+  isHome,
+  corMandante,
+  corVisitante,
+  titularesMandante,
+  titularesVisitante,
+  meuSlot,
+  meuNome,
+  onFinish,
+  speed = 1,
+}) {
   const canvasRef = useRef(null);
   const [seqIdx, setSeqIdx] = useState(0);
+  const [hopIdx, setHopIdx] = useState(0);
   const [placar, setPlacar] = useState({ mandante: 0, visitante: 0 });
   const [minutoAtual, setMinutoAtual] = useState(0);
   const [log, setLog] = useState([]);
   const rafRef = useRef(null);
+  const timeoutRef = useRef(null);
   const startRef = useRef(null);
 
+  const meuLado = isHome ? "mandante" : "visitante";
   const mandantePos = basePositions(true);
   const visitantePos = basePositions(false);
+
+  function nomeDoSlot(lado, slot) {
+    if (lado === meuLado && slot === meuSlot) return meuNome || "Você";
+    const titulares = lado === "mandante" ? titularesMandante : titularesVisitante;
+    return titulares?.[slot]?.nome || "Jogador";
+  }
 
   useEffect(() => {
     if (!timeline || timeline.length === 0) return;
@@ -47,80 +66,89 @@ export default function Pitch2D({ timeline, isHome, corMandante, corVisitante, o
       onFinish?.();
       return;
     }
-
     const seq = timeline[seqIdx];
-    const duracao = (seq.tipo === "gol" ? 2600 : seq.tipo === "chance" ? 1900 : 1500) / speed;
+    const totalHops = seq.passes.length - 1;
+
+    // todos os passes da sequência já rolaram -> resolve o desfecho
+    // (gol / chute pra fora / posse perdida) com uma pequena pausa.
+    if (hopIdx >= totalHops) {
+      draw(seq, hopIdx, 1);
+      timeoutRef.current = setTimeout(() => {
+        setMinutoAtual(seq.minuto);
+        if (seq.tipo === "gol") {
+          setPlacar((p) =>
+            seq.time === "mandante" ? { ...p, mandante: p.mandante + 1 } : { ...p, visitante: p.visitante + 1 }
+          );
+        }
+        const slotFinal = seq.passes[seq.passes.length - 1];
+        const nomeFinalizador = nomeDoSlot(seq.time, slotFinal);
+        const rotulo = seq.tipo === "gol" ? "⚽ GOL" : seq.tipo === "chance" ? "🎯 Chute" : "▸ Posse perdida";
+        setLog((l) => [{ minuto: seq.minuto, texto: `${rotulo} — ${nomeFinalizador}`, tipo: seq.tipo }, ...l].slice(0, 6));
+        setSeqIdx((i) => i + 1);
+        setHopIdx(0);
+      }, PAUSA_DESFECHO_MS / speed);
+      return () => clearTimeout(timeoutRef.current);
+    }
+
+    // anima o passe do slot atual pro próximo
+    const duracao = HOP_MS / speed;
     startRef.current = null;
 
     function frame(ts) {
       if (!startRef.current) startRef.current = ts;
       const t = Math.min(1, (ts - startRef.current) / duracao);
-      draw(seq, t);
+      draw(seq, hopIdx, t);
       if (t < 1) {
         rafRef.current = requestAnimationFrame(frame);
       } else {
-        setMinutoAtual(seq.minuto);
-        if (seq.tipo === "gol") {
-          setPlacar((p) =>
-            seq.time === "mandante"
-              ? { ...p, mandante: p.mandante + 1 }
-              : { ...p, visitante: p.visitante + 1 }
-          );
-        }
-        setLog((l) => [
-          { minuto: seq.minuto, tipo: seq.tipo, time: seq.time },
-          ...l,
-        ].slice(0, 6));
-        setSeqIdx((i) => i + 1);
+        setHopIdx((h) => h + 1);
       }
     }
-
     rafRef.current = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seqIdx, timeline, speed]);
+  }, [seqIdx, hopIdx, timeline, speed]);
 
-  function draw(seq, t) {
+  function draw(seq, hop, t) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, PITCH_W, PITCH_H);
-
     drawField(ctx);
 
-    // fase da jogada: 0 -> 1 -> volta pra 0.5 no fim (representa o time em
-    // posse avançando em direção ao gol adversário)
-    const atacaDireita = seq.time === "mandante";
-    const alvo = seq.tipo === "buildup" ? 0.35 : seq.tipo === "chance" ? 0.75 : 1.0;
-    const fase = Math.sin(t * Math.PI * 0.5) * alvo;
+    mandantePos.forEach((p, i) => drawPlayer(ctx, p, corMandante, "mandante" === meuLado && i === meuSlot, i + 1));
+    visitantePos.forEach((p, i) => drawPlayer(ctx, p, corVisitante, "visitante" === meuLado && i === meuSlot, i + 1));
 
-    const posM = shiftForPhase(mandantePos, true, seq.time === "mandante" ? fase : -fase * 0.4);
-    const posV = shiftForPhase(visitantePos, false, seq.time === "visitante" ? fase : -fase * 0.4);
+    const posArray = seq.time === "mandante" ? mandantePos : visitantePos;
+    const slotDe = seq.passes[hop];
+    const slotPara = seq.passes[hop + 1] ?? slotDe;
+    const de = toPx(posArray[slotDe].x, posArray[slotDe].y);
+    const para = toPx(posArray[slotPara].x, posArray[slotPara].y);
 
-    posM.forEach((p) => drawPlayer(ctx, p, corMandante, isHome));
-    posV.forEach((p) => drawPlayer(ctx, p, corVisitante, !isHome));
+    // arco leve no passe (sobe e desce) pra ficar visualmente claro que é
+    // uma bola trocando de pé, não deslizando no chão
+    const arco = Math.sin(Math.min(t, 1) * Math.PI) * 10;
+    const ballX = de.x + (para.x - de.x) * t;
+    const ballY = de.y + (para.y - de.y) * t - arco;
 
-    // bola: percorre da posição média do time com posse até a área
-    // adversária, seguindo a fase calculada acima
-    const atkList = seq.time === "mandante" ? posM : posV;
-    const atkIdx = seq.tipo === "gol" || seq.tipo === "chance"
-      ? atkList.findIndex((p) => p.pos === "ATA")
-      : Math.floor(atkList.length / 2);
-    const ballOwner = atkList[Math.max(0, atkIdx)] || atkList[0];
-    const goalX = atacaDireita ? 97 : 3;
-    const ballX = ballOwner.x + (goalX - ballOwner.x) * (seq.tipo === "buildup" ? t * 0.5 : t);
-    const ballY = ballOwner.y + Math.sin(t * Math.PI * 2) * 4;
+    drawPassLine(ctx, de, para);
     drawBall(ctx, ballX, ballY);
 
-    if (seq.tipo === "gol" && t > 0.75) {
-      drawGoalFlash(ctx, atacaDireita);
+    // rótulo com o nome de quem está com a bola
+    const slotRotulo = t < 0.5 ? slotDe : slotPara;
+    const nomeRotulo = nomeDoSlot(seq.time, slotRotulo);
+    drawRotulo(ctx, ballX, ballY, nomeRotulo, slotRotulo === meuSlot && seq.time === meuLado);
+
+    // desfecho: gol / chute / posse perdida, exibido no último "frame"
+    // (hop >= totalHops é tratado no efeito, mas ainda chamamos draw com t=1)
+    if (hop >= seq.passes.length - 1 && seq.tipo !== "buildup") {
+      drawGoalFlash(ctx, seq.time === "mandante");
     }
   }
 
   function drawField(ctx) {
     ctx.fillStyle = "#0b3d2e";
     ctx.fillRect(0, 0, PITCH_W, PITCH_H);
-    // listras
     ctx.fillStyle = "rgba(255,255,255,0.025)";
     for (let i = 0; i < 10; i++) {
       if (i % 2 === 0) ctx.fillRect((i * PITCH_W) / 10, 0, PITCH_W / 10, PITCH_H);
@@ -135,35 +163,63 @@ export default function Pitch2D({ timeline, isHome, corMandante, corVisitante, o
     ctx.beginPath();
     ctx.arc(PITCH_W / 2, PITCH_H / 2, 45, 0, Math.PI * 2);
     ctx.stroke();
-    // áreas
     ctx.strokeRect(6, PITCH_H / 2 - 90, 90, 180);
     ctx.strokeRect(PITCH_W - 96, PITCH_H / 2 - 90, 90, 180);
     ctx.strokeRect(6, PITCH_H / 2 - 40, 36, 80);
     ctx.strokeRect(PITCH_W - 42, PITCH_H / 2 - 40, 36, 80);
   }
 
-  function drawPlayer(ctx, p, cor, destaque) {
+  function drawPlayer(ctx, p, cor, destaque, numero) {
     const { x, y } = toPx(p.x, p.y);
+    const raio = destaque ? 11 : 9;
     ctx.beginPath();
-    ctx.arc(x, y, destaque ? 8 : 6, 0, Math.PI * 2);
-    ctx.fillStyle = destaque ? "#e8c468" : cor || "#f2f6f1";
+    ctx.arc(x, y, raio, 0, Math.PI * 2);
+    ctx.fillStyle = cor || "#f2f6f1";
     ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = "rgba(4,20,15,0.6)";
+    ctx.lineWidth = destaque ? 2.5 : 1.5;
+    ctx.strokeStyle = destaque ? "#F4C430" : "rgba(4,20,15,0.6)";
     ctx.stroke();
+
+    ctx.fillStyle = corContrastante(cor);
+    ctx.font = `bold ${destaque ? 10 : 9}px var(--font-mono)`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(numero), x, y + 0.5);
+
     if (destaque) {
       ctx.beginPath();
-      ctx.arc(x, y, 11, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(232,196,104,0.6)";
+      ctx.arc(x, y, raio + 4, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(244,196,48,0.55)";
       ctx.lineWidth = 1;
       ctx.stroke();
     }
   }
 
-  function drawBall(ctx, xPct, yPct) {
-    const { x, y } = toPx(xPct, yPct);
+  function corContrastante(hex) {
+    if (!hex) return "#0a1428";
+    const h = hex.replace("#", "");
+    if (h.length !== 6) return "#0a1428";
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    const luminancia = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminancia > 0.6 ? "#0a1428" : "#ffffff";
+  }
+
+  function drawPassLine(ctx, de, para) {
     ctx.beginPath();
-    ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+    ctx.setLineDash([4, 4]);
+    ctx.moveTo(de.x, de.y);
+    ctx.lineTo(para.x, para.y);
+    ctx.strokeStyle = "rgba(244,196,48,0.35)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawBall(ctx, x, y) {
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
     ctx.fillStyle = "#ffffff";
     ctx.fill();
     ctx.strokeStyle = "#07231a";
@@ -171,8 +227,27 @@ export default function Pitch2D({ timeline, isHome, corMandante, corVisitante, o
     ctx.stroke();
   }
 
+  function drawRotulo(ctx, x, y, nome, souEu) {
+    const texto = souEu ? `★ ${sobrenome(nome)}` : sobrenome(nome);
+    ctx.font = `700 10px var(--font-mono)`;
+    const largura = ctx.measureText(texto).width + 10;
+    const rotY = y - 16;
+    ctx.fillStyle = souEu ? "rgba(244,196,48,0.92)" : "rgba(6,12,26,0.78)";
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(x - largura / 2, rotY - 8, largura, 16, 8);
+    } else {
+      ctx.rect(x - largura / 2, rotY - 8, largura, 16);
+    }
+    ctx.fill();
+    ctx.fillStyle = souEu ? "#0a1428" : "#f2f6f1";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(texto, x, rotY);
+  }
+
   function drawGoalFlash(ctx, atacaDireita) {
-    ctx.fillStyle = "rgba(232,196,104,0.12)";
+    ctx.fillStyle = "rgba(244,196,48,0.10)";
     if (atacaDireita) ctx.fillRect(PITCH_W - 96, 0, 96, PITCH_H);
     else ctx.fillRect(0, 0, 96, PITCH_H);
   }
@@ -197,7 +272,7 @@ export default function Pitch2D({ timeline, isHome, corMandante, corVisitante, o
       <div className="mt-3 space-y-1 max-h-28 overflow-y-auto">
         {log.map((l, i) => (
           <div key={i} className="text-xs font-mono text-chalk/60">
-            {l.tipo === "gol" ? "⚽" : l.tipo === "chance" ? "🎯" : "▸"} {l.minuto}&apos;
+            {l.minuto}&apos; · {l.texto}
           </div>
         ))}
       </div>

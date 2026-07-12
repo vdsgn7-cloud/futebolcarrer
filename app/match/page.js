@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadCareer, saveCareer } from "@/lib/storage";
 import { simulateRound } from "@/lib/engine";
-import { getTeam } from "@/lib/teams";
+import { getClubeEmQualquerDivisao as getTeam } from "@/lib/divisions";
 import Pitch2D from "@/components/Pitch2D";
 
 export default function MatchPage() {
   const router = useRouter();
   const [resultado, setResultado] = useState(null);
+  const [nomeJogador, setNomeJogador] = useState("");
   const [terminou, setTerminou] = useState(false);
   const [speed, setSpeed] = useState(1);
   const rodou = useRef(false);
@@ -22,6 +23,7 @@ export default function MatchPage() {
       router.replace("/");
       return;
     }
+    setNomeJogador(career.player.nome);
     const { career: novaCareer, partida } = simulateRound(career);
     saveCareer(novaCareer);
     setResultado(partida);
@@ -89,6 +91,10 @@ export default function MatchPage() {
             isHome={resultado.isHome}
             corMandante={mandante.cor}
             corVisitante={visitante.cor}
+            titularesMandante={resultado.titularesMandante}
+            titularesVisitante={resultado.titularesVisitante}
+            meuSlot={resultado.meuSlot}
+            meuNome={nomeJogador}
             speed={speed}
             onFinish={() => setTerminou(true)}
           />

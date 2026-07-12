@@ -24,15 +24,17 @@ module.exports = {
         chalk: "#f2f6f1",
         flood: "#e8ffef",
         gold: {
-          300: "#f0d38a",
-          400: "#e8c468",
-          500: "#d4a93f",
+          300: "#f7d666",
+          400: "#F4C430",
+          500: "#dba824",
           600: "#b3862a",
         },
         green: {
           glow: "#3ddc84",
+          action: "#00FF87",
+          actionHover: "#00CC6A",
         },
-        ember: "#e0553f",
+        ember: "#FF4C4C",
       },
       fontFamily: {
         display: ["var(--font-display)"],

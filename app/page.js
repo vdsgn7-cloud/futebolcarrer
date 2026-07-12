@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { loadCareer, clearCareer } from "@/lib/storage";
-import { getTeam } from "@/lib/teams";
+import { getClubeEmQualquerDivisao as getTeam } from "@/lib/divisions";
 
 export default function Home() {
   const [career, setCareer] = useState(undefined);
@@ -24,7 +24,7 @@ export default function Home() {
             MODO<br />CARREIRA
           </h1>
           <p className="text-chalk/60 text-sm leading-relaxed max-w-xs mx-auto">
-            Crie seu jogador, escolha seu clube e viva o Brasileirão rodada a rodada — em campo 2D.
+            Crie seu jogador, jogue a peneira e viva o Brasileirão rodada a rodada — em campo 2D.
           </p>
         </div>
       </section>
@@ -71,9 +71,9 @@ export default function Home() {
           <div className="font-display text-lg mb-2 tracking-wide text-gold-400">COMO FUNCIONA</div>
           <ul className="text-sm text-chalk/60 space-y-2 leading-relaxed">
             <li>1. Crie seu jogador: nome, nacionalidade, posição e atributos.</li>
-            <li>2. Escolha um clube da Série A pra defender.</li>
-            <li>3. Simule cada rodada e acompanhe seu jogador em campo 2D.</li>
-            <li>4. Suba na tabela, evolua e escreva sua própria história.</li>
+            <li>2. Jogue a peneira — olheiros avaliam e clubes fazem propostas.</li>
+            <li>3. Assine com um clube (de qualquer divisão) e simule cada rodada em campo 2D.</li>
+            <li>4. Evolua, negocie contratos com seu agente e escreva sua própria história.</li>
           </ul>
         </div>
       </section>
